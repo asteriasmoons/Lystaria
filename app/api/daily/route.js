@@ -243,8 +243,7 @@ Approximate illumination: ${moonInfo.illumination} percent
 
 Write a single intention for today.
 
-Intention: ______________________________________
-
+Intention: 
 ---
 
 ## Divination of the Day
@@ -320,7 +319,6 @@ No link configured. Add DAILY_TASKS_URL in your Vercel environment variables to 
         textAlignment: "left",
         font: "serif",
         listStyle: "task",
-        decorations: ["callout"],
         color: "#FFFFFF",
         markdown: markdownTasks
       },
