@@ -1,6 +1,5 @@
 // app/api/daily/route.js
 
-// Optional: ensure we run in the Node runtime rather than edge
 export const runtime = "nodejs";
 
 // ----------------- Utility helpers -----------------
@@ -9,11 +8,10 @@ function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// Approximate moon phase calculation.
-// Not astronomically perfect, but good enough for a daily ritual.
+// Approximate moon phase calculation
 function getMoonPhaseInfo(date = new Date()) {
-  const synodicMonth = 29.53058867; // days
-  const reference = Date.UTC(2000, 0, 6, 18, 14, 0); // known new moon
+  const synodicMonth = 29.53058867;
+  const reference = Date.UTC(2000, 0, 6, 18, 14, 0);
 
   const nowUtc = Date.UTC(
     date.getUTCFullYear(),
@@ -26,7 +24,7 @@ function getMoonPhaseInfo(date = new Date()) {
 
   const daysSince = (nowUtc - reference) / (1000 * 60 * 60 * 24);
   const lunations = daysSince / synodicMonth;
-  let phase = lunations - Math.floor(lunations); // 0..1
+  let phase = lunations - Math.floor(lunations);
 
   if (phase < 0) phase += 1;
 
@@ -49,7 +47,7 @@ function getMoonPhaseInfo(date = new Date()) {
 const HUNTSVILLE_LAT = 34.73;
 const HUNTSVILLE_LON = -86.5859;
 
-// Map Open-Meteo weather codes to a human description.
+// Weather code descriptions
 function describeWeatherCode(code) {
   if (code === 0) return "clear sky";
   if (code >= 1 && code <= 3) return "partly to mostly cloudy";
@@ -68,7 +66,13 @@ function describeWeatherCode(code) {
 }
 
 async function getWeatherSummary() {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${HUNTSVILLE_LAT}&longitude=${HUNTSVILLE_LON}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto`;
+  const url =
+    `https://api.open-meteo.com/v1/forecast` +
+    `?latitude=${HUNTSVILLE_LAT}` +
+    `&longitude=${HUNTSVILLE_LON}` +
+    `&current=temperature_2m,weather_code` +
+    `&temperature_unit=fahrenheit` +
+    `&timezone=auto`;
 
   try {
     const res = await fetch(url);
@@ -166,8 +170,10 @@ function buildMovementTable() {
 }
 
 function buildKeywordsBlock(label, keywords) {
-  return `**${label} keywords and intentions**\n` +
-    keywords.map(k => `- ${k}`).join("\n");
+  return (
+    `**${label} keywords and intentions**\n` +
+    keywords.map(k => `- ${k}`).join("\n")
+  );
 }
 
 function buildMarkdown({
@@ -310,28 +316,27 @@ export async function GET() {
     dailyTasksUrl
   });
 
-  // -------- Craft document creation --------
-  // This part assumes the Craft API bundle for your connection
-  // defines a "create document" endpoint at POST {baseUrl}/documents
-  // with a JSON body like:
-  // { "title": "...", "contentMarkdown": "..." }
-  //
-  // If your AI bundle uses different names (for example "markdown"
-  // instead of "contentMarkdown", or a different path than "/documents"),
-  // adjust the URL and payload field names below to match it.
-
-  const title = `Daily Ritual – ${dateLabel}`;
+  // This is the document/page ID you gave:
+  const targetPageId = "B962E4AF-2987-486E-8D71-3C5FFACB6C19";
 
   const payload = {
-    title,
-    contentMarkdown: markdown
+    blocks: [
+      {
+        type: "text",
+        markdown
+      }
+    ],
+    position: {
+      position: "end",
+      pageId: targetPageId
+    }
   };
 
   let craftResponseText = "";
   let craftResponseJson = null;
 
   try {
-    const createRes = await fetch(`${baseUrl}/documents`, {
+    const res = await fetch(`${baseUrl}/blocks`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${token}`,
@@ -341,11 +346,11 @@ export async function GET() {
       body: JSON.stringify(payload)
     });
 
-    craftResponseText = await createRes.text();
+    craftResponseText = await res.text();
 
-    if (!createRes.ok) {
+    if (!res.ok) {
       return new Response(
-        `Craft API returned status ${createRes.status}: ${craftResponseText}`,
+        `Craft API returned status ${res.status}: ${craftResponseText}`,
         { status: 502 }
       );
     }
@@ -363,10 +368,10 @@ export async function GET() {
     );
   }
 
-  const out = {
+  const output = {
     status: "ok",
     createdAt: now.toISOString(),
-    title,
+    dateLabel,
     moon: moonInfo,
     weatherSummary,
     tarot,
@@ -375,7 +380,7 @@ export async function GET() {
     craftRawResponse: craftResponseJson || craftResponseText
   };
 
-  return new Response(JSON.stringify(out, null, 2), {
+  return new Response(JSON.stringify(output, null, 2), {
     status: 200,
     headers: {
       "Content-Type": "application/json; charset=utf-8"
