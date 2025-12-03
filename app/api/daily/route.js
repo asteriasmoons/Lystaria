@@ -315,7 +315,7 @@ No link configured. Add DAILY_TASKS_URL in your Vercel environment variables to 
       {
         // styled tasks block: serif, card, callout, white
         type: "text",
-        textStyle: "card",
+        textStyle: "body",
         cardLayout: "regular",
         textAlignment: "left",
         font: "serif",
