@@ -158,7 +158,7 @@ const LENORMAND_CARDS = [
   }
 ];
 
-// ----------------- Markdown construction -----------------
+// ----------------- Markdown construction helpers -----------------
 
 function buildMovementTable() {
   return [
@@ -176,17 +176,38 @@ function buildKeywordsBlock(label, keywords) {
   );
 }
 
-function buildMarkdown({
-  dateLabel,
-  moonInfo,
-  weatherSummary,
-  tarot,
-  lenormand,
-  dailyTasksUrl
-}) {
+// ----------------- Main handler -----------------
+
+export async function GET() {
+  const baseUrl = process.env.CRAFT_API_BASE_URL;
+  const token = process.env.CRAFT_API_TOKEN;
+  const dailyTasksUrl = process.env.DAILY_TASKS_URL || "";
+
+  if (!baseUrl || !token) {
+    return new Response(
+      "Missing CRAFT_API_BASE_URL or CRAFT_API_TOKEN in environment variables.",
+      { status: 500 }
+    );
+  }
+
+  const now = new Date();
+  const dateLabel = now.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+
+  const moonInfo = getMoonPhaseInfo(now);
+  const weatherSummary = await getWeatherSummary();
+  const tarot = pickRandom(TAROT_CARDS);
+  const lenormand = pickRandom(LENORMAND_CARDS);
+
   const movementTable = buildMovementTable();
 
-  return `
+  // Split the ritual into separate markdown sections
+
+  const markdownIntroAndDivination = `
 "Your day is allowed to be gentle, honest, and entirely your own."
 
 ---
@@ -247,83 +268,79 @@ ${buildKeywordsBlock("Lenormand", lenormand.keywords)}
 ## Weather
 
 ${weatherSummary}
+`.trim();
 
----
-
+  const markdownTasks = `
 ## Top Three Tasks
 
 - [ ] 
 - [ ] 
 - [ ] 
+`.trim();
 
----
-
+  const markdownMovement = `
 ## Movement
 
 ${movementTable}
 
 You can use each row for sets, minutes, or any notes that make sense to you.
+`.trim();
 
----
-
+  const markdownJournal = `
 ## Journal
 
 Use this space to write anything that needs to come out today.
-
----
-
-${
-  dailyTasksUrl
-    ? `## Daily Tasks Collection\n\n[Open daily tasks collection](${dailyTasksUrl})\n`
-    : `## Daily Tasks Collection\n\nNo link configured. Add DAILY_TASKS_URL in your Vercel environment variables to enable this link.\n`
-}
 `.trim();
-}
 
-// ----------------- Main handler -----------------
+  const markdownLink = (dailyTasksUrl
+    ? `## Daily Tasks Collection
 
-export async function GET() {
-  const baseUrl = process.env.CRAFT_API_BASE_URL;
-  const token = process.env.CRAFT_API_TOKEN;
-  const dailyTasksUrl = process.env.DAILY_TASKS_URL || "";
+[Open daily tasks collection](${dailyTasksUrl})`
+    : `## Daily Tasks Collection
 
-  if (!baseUrl || !token) {
-    return new Response(
-      "Missing CRAFT_API_BASE_URL or CRAFT_API_TOKEN in environment variables.",
-      { status: 500 }
-    );
-  }
+No link configured. Add DAILY_TASKS_URL in your Vercel environment variables to enable this link.`).trim();
 
-  const now = new Date();
-  const dateLabel = now.toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric"
-  });
-
-  const moonInfo = getMoonPhaseInfo(now);
-  const weatherSummary = await getWeatherSummary();
-  const tarot = pickRandom(TAROT_CARDS);
-  const lenormand = pickRandom(LENORMAND_CARDS);
-
-  const markdown = buildMarkdown({
-    dateLabel,
-    moonInfo,
-    weatherSummary,
-    tarot,
-    lenormand,
-    dailyTasksUrl
-  });
-
-  // This is the document/page ID you gave:
+  // Target page
   const targetPageId = "B962E4AF-2987-486E-8D71-3C5FFACB6C19";
 
+  // Build blocks array with styling
   const payload = {
     blocks: [
       {
         type: "text",
-        markdown
+        textStyle: "body",
+        font: "serif",
+        markdown: markdownIntroAndDivination
+      },
+      {
+        // styled tasks block: serif, card, callout, white
+        type: "text",
+        textStyle: "card",
+        cardLayout: "regular",
+        textAlignment: "left",
+        font: "serif",
+        listStyle: "task",
+        decorations: ["callout"],
+        color: "#FFFFFF",
+        markdown: markdownTasks
+      },
+      {
+        type: "text",
+        textStyle: "body",
+        font: "serif",
+        markdown: markdownMovement
+      },
+      {
+        type: "text",
+        textStyle: "body",
+        font: "serif",
+        markdown: markdownJournal
+      },
+      {
+        type: "text",
+        textStyle: "body",
+        font: "serif",
+        markdown: markdownLink
       }
     ],
     position: {
@@ -368,6 +385,14 @@ export async function GET() {
     );
   }
 
+  const previewMarkdown = [
+    markdownIntroAndDivination,
+    markdownTasks,
+    markdownMovement,
+    markdownJournal,
+    markdownLink
+  ].join("\n\n---\n\n");
+
   const output = {
     status: "ok",
     createdAt: now.toISOString(),
@@ -376,7 +401,7 @@ export async function GET() {
     weatherSummary,
     tarot,
     lenormand,
-    markdownPreview: markdown.slice(0, 200) + "...",
+    markdownPreview: previewMarkdown.slice(0, 300) + "...",
     craftRawResponse: craftResponseJson || craftResponseText
   };
 
